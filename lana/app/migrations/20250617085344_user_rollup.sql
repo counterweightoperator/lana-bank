@@ -40,10 +40,10 @@ CREATE OR REPLACE FUNCTION fn_project_user_authentication_id_updated (entity_id 
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    INSERT INTO my_log (
-        log_entry)
-    VALUES (
-        'I worked!');
+    UPDATE
+        users
+    SET authentication_id = CAST(event ->> 'authentication_id' AS UUID)
+    WHERE id = entity_id;
     RETURN;
 END;
 $$;
