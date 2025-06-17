@@ -5,6 +5,9 @@ load "helpers"
 setup_file() {
   start_server
   login_superadmin
+  
+  export bank_manager_email=$(generate_email)
+  export customer_email=$(generate_email)
 }
 
 teardown_file() {
@@ -12,8 +15,6 @@ teardown_file() {
 }
 
 @test "superuser: can create bank manager" {
-  bank_manager_email=$(generate_email)
-
   variables=$(
     jq -n \
     --arg email "$bank_manager_email" \
@@ -50,7 +51,6 @@ teardown_file() {
 
 
 @test "superuser: can create customer" {
-  customer_email=$(generate_email)
   telegramId=$(generate_email)
   customer_type="INDIVIDUAL"
 
@@ -71,4 +71,12 @@ teardown_file() {
   exec_admin_graphql 'customer-create' "$variables"
   customer_id=$(graphql_output .data.customerCreate.customer.customerId)
   [[ "$customer_id" != "null" ]] || exit 1
+}
+
+@test "Pablo's rollup materializes user creation" {
+  bank_manager_is_there=$(psql postgres://user:password@localhost:5433/pg -t -A -c "select count(*) from users where email='${bank_manager_email}';" | xargs)
+  customer_is_there=$(psql postgres://user:password@localhost:5433/pg -t -A -c "select count(*) from users where email LIKE '%example.com';" | xargs)
+  echo "$customer_is_there"
+  [[ "$bank_manager_is_there" == "1" ]] || exit 1
+  [[ "$customer_is_there" == "1" ]] || exit 1
 }
