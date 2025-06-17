@@ -26,8 +26,6 @@ BEGIN
         recorded_at_timestamp,
         event_sequence,
         event ->> 'email')
-ON CONFLICT
-    DO NOTHING;
     RETURN;
 END;
 $$;
