@@ -36,7 +36,9 @@ CREATE OR REPLACE FUNCTION fn_trigger_user_initialized ()
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    PERFORM fn_project_user_initialized (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
+    IF (NEW.event ->> 'type') = 'initialized' THEN
+        PERFORM fn_project_user_initialized (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
+    END IF;
     RETURN new;
 END;
 $$;
@@ -44,6 +46,5 @@ $$;
 CREATE TRIGGER event_insert_user_initialized
     AFTER INSERT ON core_user_events
     FOR EACH ROW
-    WHEN ((new.event ->> 'type') = 'initialized')
     EXECUTE PROCEDURE fn_trigger_user_initialized ();
 
