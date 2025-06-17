@@ -42,7 +42,9 @@ CREATE OR REPLACE FUNCTION fn_project_user_authentication_id_updated (entity_id 
 BEGIN
     UPDATE
         users
-    SET authentication_id = CAST(event ->> 'authentication_id' AS UUID)
+    SET authentication_id = CAST(event ->> 'authentication_id' AS UUID),
+        updated_at = recorded_at_timestamp,
+        last_sequence = event_sequence
     WHERE id = entity_id;
     RETURN;
 END;
