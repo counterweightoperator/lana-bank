@@ -73,10 +73,26 @@ teardown_file() {
   [[ "$customer_id" != "null" ]] || exit 1
 }
 
-@test "Pablo's rollup materializes user creation" {
-  bank_manager_is_there=$(psql postgres://user:password@localhost:5433/pg -t -A -c "select count(*) from users where email='${bank_manager_email}';" | xargs)
-  customer_is_there=$(psql postgres://user:password@localhost:5433/pg -t -A -c "select count(*) from users where email LIKE '%example.com';" | xargs)
-  echo "$customer_is_there"
-  [[ "$bank_manager_is_there" == "1" ]] || exit 1
-  [[ "$customer_is_there" == "1" ]] || exit 1
+@test "Pablo's rollup creates expected state" {
+  run_query() {
+    psql postgres://user:password@localhost:5433/pg -t -A -c "$1" | xargs
+  }
+
+  check_count() {
+    local query="$1"
+    local expected="$2"
+    [ "$(run_query "$query")" == "$expected" ] && echo "true" || echo "false"
+  }
+
+  bank_manager_is_there=$(check_count "select count(*) from users where email='${bank_manager_email}';" 1)
+  customer_is_there=$(check_count "select count(*) from users where email LIKE '%example.com';" 1)
+  both_have_authentication_id=$(check_count "select count(*) from users where authentication_id IS NOT NULL;" 2)
+  both_have_roles=$(check_count "select count(*) from users where role_id IS NOT NULL;" 2)
+  both_have_received_an_update=$(check_count "select count(*) from users where created_at != updated_at;" 2)
+
+  [[ "$bank_manager_is_there" == "true" ]] || exit 1
+  [[ "$customer_is_there" == "true" ]] || exit 1
+  [[ "$both_have_authentication_id" == "true" ]] || exit 1
+  [[ "$both_have_roles" == "true" ]] || exit 1
+  [[ "$both_have_received_an_update" == "true" ]] || exit 1
 }
