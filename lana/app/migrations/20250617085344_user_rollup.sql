@@ -86,7 +86,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION fn_trigger_user_initialized ()
+CREATE OR REPLACE FUNCTION fn_trigger_user_event ()
     RETURNS TRIGGER
     SECURITY DEFINER
     LANGUAGE plpgsql
@@ -112,8 +112,8 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER event_insert_user_initialized
+CREATE TRIGGER trg_rollup_user_event
     AFTER INSERT ON core_user_events
     FOR EACH ROW
-    EXECUTE PROCEDURE fn_trigger_user_initialized ();
+    EXECUTE PROCEDURE fn_trigger_user_event ();
 
