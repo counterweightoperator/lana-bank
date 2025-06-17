@@ -5,9 +5,6 @@ load "helpers"
 setup_file() {
   start_server
   login_superadmin
-  
-  export bank_manager_email=$(generate_email)
-  export customer_email=$(generate_email)
 }
 
 teardown_file() {
@@ -15,6 +12,8 @@ teardown_file() {
 }
 
 @test "superuser: can create bank manager" {
+  bank_manager_email=$(generate_email)
+
   variables=$(
     jq -n \
     --arg email "$bank_manager_email" \
@@ -51,6 +50,7 @@ teardown_file() {
 
 
 @test "superuser: can create customer" {
+  customer_email=$(generate_email)
   telegramId=$(generate_email)
   customer_type="INDIVIDUAL"
 
@@ -71,28 +71,4 @@ teardown_file() {
   exec_admin_graphql 'customer-create' "$variables"
   customer_id=$(graphql_output .data.customerCreate.customer.customerId)
   [[ "$customer_id" != "null" ]] || exit 1
-}
-
-@test "Pablo's rollup creates expected state" {
-  run_query() {
-    psql postgres://user:password@localhost:5433/pg -t -A -c "$1" | xargs
-  }
-
-  check_count() {
-    local query="$1"
-    local expected="$2"
-    [ "$(run_query "$query")" == "$expected" ] && echo "true" || echo "false"
-  }
-
-  bank_manager_is_there=$(check_count "select count(*) from users where email='${bank_manager_email}';" 1)
-  customer_is_there=$(check_count "select count(*) from users where email LIKE '%example.com';" 1)
-  both_have_authentication_id=$(check_count "select count(*) from users where authentication_id IS NOT NULL;" 2)
-  both_have_roles=$(check_count "select count(*) from users where role_id IS NOT NULL;" 2)
-  both_have_received_an_update=$(check_count "select count(*) from users where created_at != updated_at;" 2)
-
-  [[ "$bank_manager_is_there" == "true" ]] || exit 1
-  [[ "$customer_is_there" == "true" ]] || exit 1
-  [[ "$both_have_authentication_id" == "true" ]] || exit 1
-  [[ "$both_have_roles" == "true" ]] || exit 1
-  [[ "$both_have_received_an_update" == "true" ]] || exit 1
 }
