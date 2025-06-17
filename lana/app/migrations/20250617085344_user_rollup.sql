@@ -8,6 +8,10 @@ CREATE TABLE users (
     last_sequence INT NOT NULL
 );
 
+CREATE TABLE my_log (
+    log_entry TEXT
+);
+
 CREATE OR REPLACE FUNCTION fn_project_user_initialized (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)
     RETURNS VOID
     SECURITY DEFINER
@@ -30,6 +34,20 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION fn_project_user_authentication_id_updated (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)
+    RETURNS VOID
+    SECURITY DEFINER
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO my_log (
+        log_entry)
+    VALUES (
+        'I worked!');
+    RETURN;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION fn_trigger_user_initialized ()
     RETURNS TRIGGER
     SECURITY DEFINER
@@ -38,6 +56,9 @@ CREATE OR REPLACE FUNCTION fn_trigger_user_initialized ()
 BEGIN
     IF (NEW.event ->> 'type') = 'initialized' THEN
         PERFORM fn_project_user_initialized (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
+    END IF;
+    IF (NEW.event ->> 'type') = 'authentication_id_updated' THEN
+        PERFORM fn_project_user_authentication_id_updated (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
     END IF;
     RETURN new;
 END;
