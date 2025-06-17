@@ -9,11 +9,6 @@ CREATE TABLE users (
     last_sequence INT NOT NULL
 );
 
--- TODO Remove when done debugging
-CREATE TABLE my_log (
-    log_entry TEXT
-);
-
 CREATE OR REPLACE FUNCTION fn_project_user_initialized (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)
     RETURNS VOID
     SECURITY DEFINER
