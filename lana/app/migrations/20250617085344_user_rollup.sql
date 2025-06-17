@@ -68,8 +68,13 @@ BEGIN
 END;
 $$;
 
--- Untested since the superuser bats test doesn't trigger any revoke events.
--- Might give it a shot later, but for now these function remains conceptual.
+
+/*
+Untested since the superuser bats test doesn't trigger any revoke events.
+
+Might give it a shot later at triggering that event in the test, but for now 
+this function remains conceptual.
+ */
 CREATE OR REPLACE FUNCTION fn_project_user_role_revoked (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)
     RETURNS VOID
     SECURITY DEFINER
