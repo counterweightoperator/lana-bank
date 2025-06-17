@@ -25,8 +25,25 @@ BEGIN
         recorded_at_timestamp,
         recorded_at_timestamp,
         event_sequence,
-        event ->> 'email')
+        event ->> 'email');
     RETURN;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION fn_trigger_user_initialized ()
+    RETURNS TRIGGER
+    SECURITY DEFINER
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM fn_project_user_initialized (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
+    RETURN new;
+END;
+$$;
+
+CREATE TRIGGER event_insert_user_initialized
+    AFTER INSERT ON core_user_events
+    FOR EACH ROW
+    WHEN ((new.event ->> 'type') = 'initialized')
+    EXECUTE PROCEDURE fn_trigger_user_initialized ();
 
