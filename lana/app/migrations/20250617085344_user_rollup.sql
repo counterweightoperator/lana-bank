@@ -2,12 +2,14 @@ CREATE TABLE users (
     id UUID PRIMARY KEY,
     email VARCHAR NOT NULL UNIQUE,
     authentication_id UUID UNIQUE DEFAULT NULL,
+    role_id UUID DEFAULT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     deleted_at TIMESTAMPTZ NULL,
     last_sequence INT NOT NULL
 );
 
+-- TODO Remove when done debugging
 CREATE TABLE my_log (
     log_entry TEXT
 );
@@ -50,6 +52,22 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION fn_project_user_role_granted (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)
+    RETURNS VOID
+    SECURITY DEFINER
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE
+        users
+    SET role_id = CAST(event ->> 'id' AS UUID),
+        updated_at = recorded_at_timestamp,
+        last_sequence = event_sequence
+    WHERE id = entity_id;
+    RETURN;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION fn_trigger_user_initialized ()
     RETURNS TRIGGER
     SECURITY DEFINER
@@ -58,11 +76,17 @@ CREATE OR REPLACE FUNCTION fn_trigger_user_initialized ()
 BEGIN
     IF (NEW.event ->> 'type') = 'initialized' THEN
         PERFORM fn_project_user_initialized (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
+        RETURN NEW;
     END IF;
     IF (NEW.event ->> 'type') = 'authentication_id_updated' THEN
         PERFORM fn_project_user_authentication_id_updated (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
+        RETURN NEW;
     END IF;
-    RETURN new;
+    IF (NEW.event ->> 'type') = 'role_granted' THEN
+        PERFORM fn_project_user_role_granted (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);
+        RETURN NEW;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
