@@ -152,3 +152,64 @@ class EntityDefinition:
         self.entity_name = entity_name
         self.target_table = target_table
         self.events = tuple(events)
+
+    def validate(self):
+        insert_events = self._get_insert_events()
+        all_target_cols = self._get_all_target_columns()
+        non_nullable_cols = self._get_non_nullable_domain_columns()
+
+        self._validate_insert_event_exists(insert_events)
+        self._validate_mappings_reference_target_columns(all_target_cols)
+        self._validate_init_event_maps_required_non_nullable_columns(
+            insert_events, non_nullable_cols
+        )
+
+    def _get_insert_events(self):
+        return [
+            event
+            for event in self.events
+            if event.effect.dml_operation == DMLOperation.INSERT
+        ]
+
+    def _get_all_target_columns(self):
+        return {
+            col.column_name for col in self.target_table.domain_column_definitions
+        }.union(
+            {col.column_name for col in self.target_table.metadata_column_definitions}
+        )
+
+    def _get_non_nullable_domain_columns(self):
+        return {
+            col.column_name
+            for col in self.target_table.domain_column_definitions
+            if not col.is_nullable
+        }
+
+    def _validate_insert_event_exists(self, insert_events):
+        if not insert_events:
+            raise ValueError(
+                f"Entity '{self.entity_name}' has no INSERT event defined."
+            )
+
+    def _validate_mappings_reference_target_columns(self, all_target_cols):
+        for event in self.events:
+            for mapping in event.effect.mappings:
+                if mapping.target_table_column_name not in all_target_cols:
+                    raise ValueError(
+                        f"Column '{mapping.target_table_column_name}' in event '{event.event_type}' "
+                        f"is not defined in target table '{self.target_table.table_name}'."
+                    )
+
+    def _validate_init_event_maps_required_non_nullable_columns(
+        self, insert_events, non_nullable_cols
+    ):
+        initializing_event = insert_events[0]
+        mapped_cols = {
+            m.target_table_column_name for m in initializing_event.effect.mappings
+        }
+        missing_required_cols = non_nullable_cols - mapped_cols
+        if missing_required_cols:
+            raise ValueError(
+                f"Initializing event '{initializing_event.event_type}' does not map required "
+                f"non-nullable columns: {sorted(missing_required_cols)}"
+            )
