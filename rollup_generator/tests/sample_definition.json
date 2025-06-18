@@ -1,11 +1,8 @@
 {
     "entity_name": "core_user",
     "target_table": {
+        "table_name": "core_user",
         "fields": {
-            "id": {
-                "type": "UUID",
-                "is_pk": true
-            },
             "email": {
                 "type": "VARCHAR",
                 "is_nullable": false,
