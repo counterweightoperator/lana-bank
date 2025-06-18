@@ -1,9 +1,11 @@
 import logging
 import importlib.metadata
 import pathlib
+import json
 
 import click
 
+from rollup_generator.validation_service import validate_entity_service
 
 PATHS = {}
 
@@ -28,3 +30,15 @@ def cli() -> None:
 @cli.command()
 def smoke_test() -> None:
     print("Run running, running")
+
+
+@cli.command()
+@click.argument(
+    "json_path",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
+)
+def validate_entity_definition(json_path):
+    with open(json_path, "r") as f:
+        json_content = json.load(f)
+    validate_entity_service(json_content)
+    logger.info("Validation successful!")

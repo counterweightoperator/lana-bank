@@ -69,14 +69,14 @@
                         "authentication_id_updated"
                     ],
                     "type": "string"
-                },
-                "effect": {
-                    "dml": "UPDATE",
-                    "mapping": {
-                        "authentication_id": {
-                            "type": "event_property",
-                            "property": "authentication_id"
-                        }
+                }
+            },
+            "effect": {
+                "dml": "UPDATE",
+                "mapping": {
+                    "authentication_id": {
+                        "type": "event_property",
+                        "property": "authentication_id"
                     }
                 }
             },
@@ -97,15 +97,6 @@
                         "role_granted"
                     ],
                     "type": "string"
-                },
-                "effect": {
-                    "dml": "UPDATE",
-                    "mapping": {
-                        "role_id": {
-                            "type": "event_property",
-                            "property": "id"
-                        }
-                    }
                 }
             },
             "required": [
@@ -113,7 +104,16 @@
                 "id",
                 "type"
             ],
-            "type": "object"
+            "type": "object",
+            "effect": {
+                "dml": "UPDATE",
+                "mapping": {
+                    "role_id": {
+                        "type": "event_property",
+                        "property": "id"
+                    }
+                }
+            }
         },
         "role_revoked": {
             "properties": {
@@ -126,15 +126,6 @@
                         "role_revoked"
                     ],
                     "type": "string"
-                },
-                "effect": {
-                    "dml": "UPDATE",
-                    "mapping": {
-                        "role_id": {
-                            "type": "raw_sql",
-                            "property": "NULL"
-                        }
-                    }
                 }
             },
             "required": [
@@ -142,7 +133,16 @@
                 "id",
                 "type"
             ],
-            "type": "object"
+            "type": "object",
+            "effect": {
+                "dml": "UPDATE",
+                "mapping": {
+                    "role_id": {
+                        "type": "raw_sql",
+                        "property": "NULL"
+                    }
+                }
+            }
         }
     }
 }
