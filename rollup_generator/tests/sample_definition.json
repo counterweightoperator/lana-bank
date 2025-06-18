@@ -1,0 +1,161 @@
+{
+    "entity_name": "core_user",
+    "target_table": {
+        "fields": {
+            "id": {
+                "type": "UUID",
+                "is_pk": true
+            },
+            "email": {
+                "type": "VARCHAR",
+                "is_nullable": false,
+                "is_unique": true
+            },
+            "authentication_id": {
+                "type": "UUID",
+                "is_nullable": true,
+                "is_unique": true,
+                "default": "NULL"
+            },
+            "role_id": {
+                "type": "UUID",
+                "is_nullable": true,
+                "default": "NULL"
+            }
+        }
+    },
+    "events": {
+        "initialized": {
+            "properties": {
+                "audit_info": {
+                    "$ref": "#/definitions/AuditInfo"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "initialized"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "audit_info",
+                "email",
+                "id",
+                "type"
+            ],
+            "type": "object",
+            "effect": {
+                "dml": "INSERT",
+                "mapping": {
+                    "id": {
+                        "type": "event_property",
+                        "property": "id"
+                    },
+                    "email": {
+                        "type": "event_property",
+                        "property": "email"
+                    }
+                }
+            }
+        },
+        "authentication_id_updated": {
+            "properties": {
+                "authentication_id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "authentication_id_updated"
+                    ],
+                    "type": "string"
+                },
+                "effect": {
+                    "dml": "UPDATE",
+                    "mapping": {
+                        "authentication_id": {
+                            "type": "event_property",
+                            "property": "authentication_id"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "authentication_id",
+                "type"
+            ],
+            "type": "object"
+        },
+        "role_granted": {
+            "properties": {
+                "audit_info": {
+                    "$ref": "#/definitions/AuditInfo"
+                },
+                "id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "role_granted"
+                    ],
+                    "type": "string"
+                },
+                "effect": {
+                    "dml": "UPDATE",
+                    "mapping": {
+                        "role_id": {
+                            "type": "event_property",
+                            "property": "id"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "audit_info",
+                "id",
+                "type"
+            ],
+            "type": "object"
+        },
+        "role_revoked": {
+            "properties": {
+                "audit_info": {
+                    "$ref": "#/definitions/AuditInfo"
+                },
+                "id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "role_revoked"
+                    ],
+                    "type": "string"
+                },
+                "effect": {
+                    "dml": "UPDATE",
+                    "mapping": {
+                        "role_id": {
+                            "type": "raw_sql",
+                            "property": "NULL"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "audit_info",
+                "id",
+                "type"
+            ],
+            "type": "object"
+        }
+    }
+}
