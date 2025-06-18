@@ -24,9 +24,6 @@
     "events": {
         "initialized": {
             "properties": {
-                "audit_info": {
-                    "$ref": "#/definitions/AuditInfo"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -42,7 +39,6 @@
                 }
             },
             "required": [
-                "audit_info",
                 "email",
                 "id",
                 "type"
@@ -92,9 +88,6 @@
         },
         "role_granted": {
             "properties": {
-                "audit_info": {
-                    "$ref": "#/definitions/AuditInfo"
-                },
                 "id": {
                     "format": "uuid",
                     "type": "string"
@@ -124,9 +117,6 @@
         },
         "role_revoked": {
             "properties": {
-                "audit_info": {
-                    "$ref": "#/definitions/AuditInfo"
-                },
                 "id": {
                     "format": "uuid",
                     "type": "string"
