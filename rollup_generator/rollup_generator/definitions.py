@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Collection, Union
+from typing import Collection, Union, List, Set
 
 
 class PgColType(Enum):
@@ -153,7 +153,7 @@ class EntityDefinition:
         self.target_table = target_table
         self.events = tuple(events)
 
-    def validate(self):
+    def validate(self) -> None:
         insert_events = self._get_insert_events()
         all_target_cols = self._get_all_target_columns()
         non_nullable_cols = self._get_non_nullable_domain_columns()
@@ -164,34 +164,38 @@ class EntityDefinition:
             insert_events, non_nullable_cols
         )
 
-    def _get_insert_events(self):
+    def _get_insert_events(self) -> List[EventDefinition]:
         return [
             event
             for event in self.events
             if event.effect.dml_operation == DMLOperation.INSERT
         ]
 
-    def _get_all_target_columns(self):
+    def _get_all_target_columns(self) -> Set[str]:
         return {
             col.column_name for col in self.target_table.domain_column_definitions
         }.union(
             {col.column_name for col in self.target_table.metadata_column_definitions}
         )
 
-    def _get_non_nullable_domain_columns(self):
+    def _get_non_nullable_domain_columns(self) -> Set[str]:
         return {
             col.column_name
             for col in self.target_table.domain_column_definitions
             if not col.is_nullable
         }
 
-    def _validate_insert_event_exists(self, insert_events):
+    def _validate_insert_event_exists(
+        self, insert_events: List[EventDefinition]
+    ) -> None:
         if not insert_events:
             raise ValueError(
                 f"Entity '{self.entity_name}' has no INSERT event defined."
             )
 
-    def _validate_mappings_reference_target_columns(self, all_target_cols):
+    def _validate_mappings_reference_target_columns(
+        self, all_target_cols: Set[str]
+    ) -> None:
         for event in self.events:
             for mapping in event.effect.mappings:
                 if mapping.target_table_column_name not in all_target_cols:
@@ -201,8 +205,8 @@ class EntityDefinition:
                     )
 
     def _validate_init_event_maps_required_non_nullable_columns(
-        self, insert_events, non_nullable_cols
-    ):
+        self, insert_events: List[EventDefinition], non_nullable_cols: Set[str]
+    ) -> None:
         initializing_event = insert_events[0]
         mapped_cols = {
             m.target_table_column_name for m in initializing_event.effect.mappings
