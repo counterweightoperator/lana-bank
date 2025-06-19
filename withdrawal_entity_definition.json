@@ -1,0 +1,201 @@
+{
+    "entity_name": "core_withdrawal",
+    "target_table": {
+        "table_name": "core_withdrawal",
+        "fields": {
+            "amount": {
+                "type": "INTEGER",
+                "is_nullable": false
+            },
+            "reference": {
+                "type": "VARCHAR",
+                "is_nullable": false,
+                "is_unique": true
+            },
+            "deposit_account_id": {
+                "type": "UUID",
+                "is_nullable": false
+            },
+            "approval_process_id": {
+                "type": "UUID",
+                "is_nullable": false,
+                "is_unique": true
+            },
+            "ledger_tx_id": {
+                "type": "UUID",
+                "is_nullable": true,
+                "default": "NULL",
+                "is_unique": true
+            },
+            "withdrawal_status": {
+                "type": "VARCHAR",
+                "is_nullable": false,
+                "default": "'initialized'"
+            }
+        }
+    },
+    "events": {
+        "initialized": {
+            "properties": {
+                "id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "amount": {
+                    "type": "integer"
+                },
+                "reference": {
+                    "type": "string"
+                },
+                "deposit_account_id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "approval_process_id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "initialized"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "amount",
+                "reference",
+                "deposit_account_id",
+                "approval_process_id",
+                "type"
+            ],
+            "type": "object",
+            "effect": {
+                "dml": "INSERT",
+                "mapping": {
+                    "id": {
+                        "type": "event_property",
+                        "property": "id"
+                    },
+                    "amount": {
+                        "type": "event_property",
+                        "property": "amount"
+                    },
+                    "reference": {
+                        "type": "event_property",
+                        "property": "reference"
+                    },
+                    "deposit_account_id": {
+                        "type": "event_property",
+                        "property": "deposit_account_id"
+                    },
+                    "approval_process_id": {
+                        "type": "event_property",
+                        "property": "approval_process_id"
+                    },
+                    "withdrawal_status": {
+                        "type": "raw_sql",
+                        "property": "'initialized'"
+                    }
+                }
+            }
+        },
+        "approval_process_concluded": {
+            "properties": {
+                "approval_process_id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "approved": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "enum": [
+                        "approval_process_concluded"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "approval_process_id",
+                "approved",
+                "type"
+            ],
+            "type": "object",
+            "effect": {
+                "dml": "UPDATE",
+                "mapping": {
+                    "withdrawal_status": {
+                        "type": "raw_sql",
+                        "property": "CASE WHEN CAST(event->>'approved' AS BOOLEAN) THEN 'approved' ELSE 'rejected' END"
+                    }
+                }
+            }
+        },
+        "cancelled": {
+            "properties": {
+                "ledger_tx_id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "cancelled"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ledger_tx_id",
+                "type"
+            ],
+            "type": "object",
+            "effect": {
+                "dml": "UPDATE",
+                "mapping": {
+                    "withdrawal_status": {
+                        "type": "raw_sql",
+                        "property": "'cancelled'"
+                    },
+                    "ledger_tx_id": {
+                        "type": "event_property",
+                        "property": "ledger_tx_id"
+                    }
+                }
+            }
+        },
+        "confirmed": {
+            "properties": {
+                "ledger_tx_id": {
+                    "format": "uuid",
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "confirmed"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ledger_tx_id",
+                "type"
+            ],
+            "type": "object",
+            "effect": {
+                "dml": "UPDATE",
+                "mapping": {
+                    "withdrawal_status": {
+                        "type": "raw_sql",
+                        "property": "'confirmed'"
+                    },
+                    "ledger_tx_id": {
+                        "type": "event_property",
+                        "property": "ledger_tx_id"
+                    }
+                }
+            }
+        }
+    }
+}
