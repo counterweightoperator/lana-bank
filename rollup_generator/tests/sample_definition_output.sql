@@ -26,7 +26,7 @@ BEGIN
         recorded_at_timestamp,
         recorded_at_timestamp,
         event_sequence,
-        event ->> 'email');
+        CAST(event ->> 'email' AS VARCHAR));
     RETURN;
 END;
 $$;

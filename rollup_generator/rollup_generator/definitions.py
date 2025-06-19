@@ -57,30 +57,36 @@ class PostgresColumnDefinition:
 
 class TargetTableDefinition:
 
+    ID_COL = PostgresColumnDefinition(
+        column_name="id", column_type=PgColType.UUID, is_pk=True
+    )
+    CREATED_AT_COL = PostgresColumnDefinition(
+        column_name="created_at",
+        column_type=PgColType.TIMESTAMPTZ,
+        is_nullable=False,
+    )
+    UPDATED_AT_COL = PostgresColumnDefinition(
+        column_name="updated_at",
+        column_type=PgColType.TIMESTAMPTZ,
+        is_nullable=False,
+    )
+    DELETED_AT_COL = PostgresColumnDefinition(
+        column_name="deleted_at",
+        column_type=PgColType.TIMESTAMPTZ,
+        is_nullable=True,
+    )
+    LAST_SEQUENCE_COL = PostgresColumnDefinition(
+        column_name="last_sequence",
+        column_type=PgColType.INTEGER,
+        is_nullable=False,
+    )
+
     DEFAULT_METADATA_COLS = (
-        PostgresColumnDefinition(
-            column_name="id", column_type=PgColType.UUID, is_pk=True
-        ),
-        PostgresColumnDefinition(
-            column_name="created_at",
-            column_type=PgColType.TIMESTAMPTZ,
-            is_nullable=False,
-        ),
-        PostgresColumnDefinition(
-            column_name="updated_at",
-            column_type=PgColType.TIMESTAMPTZ,
-            is_nullable=False,
-        ),
-        PostgresColumnDefinition(
-            column_name="deleted_at",
-            column_type=PgColType.TIMESTAMPTZ,
-            is_nullable=True,
-        ),
-        PostgresColumnDefinition(
-            column_name="last_sequence",
-            column_type=PgColType.INTEGER,
-            is_nullable=False,
-        ),
+        ID_COL,
+        CREATED_AT_COL,
+        UPDATED_AT_COL,
+        DELETED_AT_COL,
+        LAST_SEQUENCE_COL,
     )
 
     def __init__(
@@ -181,6 +187,26 @@ class EventEffectDefinition:
 
 
 class EventDefinition:
+
+    DEFAULT_METADATA_COL_NAMES = [
+        TargetTableDefinition.ID_COL.column_name,
+        TargetTableDefinition.CREATED_AT_COL.column_name,
+        TargetTableDefinition.UPDATED_AT_COL.column_name,
+        TargetTableDefinition.LAST_SEQUENCE_COL.column_name,
+    ]
+
+    DEFAULT_ENTITY_ID_NAME = "entity_id"
+    DEFAULT_RECORDED_AT_TIMESTAMP_NAME = "recorded_at_timestamp"
+    DEFAULT_EVENT_SEQUENCE_NAME = "event_sequence"
+    DEFAULT_EVENT_NAME = "event"
+
+    DEFAULT_METADATA_INSERT_VALS = [
+        DEFAULT_ENTITY_ID_NAME,
+        DEFAULT_RECORDED_AT_TIMESTAMP_NAME,
+        DEFAULT_RECORDED_AT_TIMESTAMP_NAME,
+        DEFAULT_EVENT_SEQUENCE_NAME,
+    ]
+
     def __init__(
         self,
         event_type: str,
@@ -191,32 +217,17 @@ class EventDefinition:
         self.schema = schema
         self.effect = effect
 
-    def render(self, entity_name: str, target_table: TargetTableDefinition) -> str:
+    def render(self, target_table: TargetTableDefinition) -> str:
         table_name = target_table.table_name + "s"
-
-        def cast_for_update(col, prop):
-            col_type = next(
-                (
-                    c.column_type
-                    for c in (
-                        list(target_table.domain_column_definitions)
-                        + list(target_table.metadata_column_definitions)
-                    )
-                    if c.column_name == col
-                ),
-                PgColType.VARCHAR,  # Default fallback
-            )
-
-            if col_type == PgColType.UUID:
-                return f"CAST(event ->> '{prop}' AS UUID)"
-            return f"event ->> '{prop}'"
-
-        effect = self.effect
-        dml = effect.dml_operation.value.upper()
-        mappings = effect.mappings
+        dml = self.effect.dml_operation
+        all_columns = {
+            col.column_name: col.column_type
+            for col in list(target_table.domain_column_definitions)
+            + list(target_table.metadata_column_definitions)
+        }
 
         lines = [
-            f"CREATE OR REPLACE FUNCTION fn_project_{entity_name}_{self.event_type} (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)",
+            f"CREATE OR REPLACE FUNCTION fn_project_{target_table.table_name}_{self.event_type} ({EventDefinition.DEFAULT_ENTITY_ID_NAME} UUID, {EventDefinition.DEFAULT_EVENT_SEQUENCE_NAME} INTEGER, {EventDefinition.DEFAULT_RECORDED_AT_TIMESTAMP_NAME} TIMESTAMPTZ, {EventDefinition.DEFAULT_EVENT_NAME} JSONB)",
             "    RETURNS VOID",
             "    SECURITY DEFINER",
             "    LANGUAGE plpgsql",
@@ -224,69 +235,85 @@ class EventDefinition:
             "BEGIN",
         ]
 
-        if dml == "INSERT":
-            cols = ["id", "created_at", "updated_at", "last_sequence"]
-            vals = [
-                "entity_id",
-                "recorded_at_timestamp",
-                "recorded_at_timestamp",
-                "event_sequence",
-            ]
-
-            for mapping in mappings:
-                if mapping.target_table_column_name == "id":
-                    continue
-
-                if isinstance(mapping, EventToColMappingDefinition):
-                    cols.append(mapping.target_table_column_name)
-                    vals.append(f"event ->> '{mapping.event_property_name}'")
-                elif isinstance(mapping, RawSQLToColMappingDefinition):
-                    cols.append(mapping.target_table_column_name)
-                    vals.append(mapping.raw_sql)
-                else:
-                    raise ValueError(f"Unsupported mapping type: {type(mapping)}")
-
-            lines += [
-                f"    INSERT INTO {table_name} (",
-                "        " + ",\n        ".join(cols) + ")",
-                "    VALUES (",
-                "        " + ",\n        ".join(vals) + ");",
-                "    RETURN;",
-            ]
-
-        elif dml == "UPDATE":
-            lines.append(f"    UPDATE")
-            lines.append(f"        {table_name}")
-            lines.append(f"    SET")
-
-            sets = []
-            for mapping in mappings:
-                if isinstance(mapping, EventToColMappingDefinition):
-                    sets.append(
-                        f"        {mapping.target_table_column_name} = {cast_for_update(mapping.target_table_column_name, mapping.event_property_name)}"
-                    )
-                elif isinstance(mapping, RawSQLToColMappingDefinition):
-                    sets.append(
-                        f"        {mapping.target_table_column_name} = {mapping.raw_sql}"
-                    )
-                else:
-                    raise ValueError(f"Unsupported mapping type: {type(mapping)}")
-
-            # Audit fields
-            sets += [
-                "        updated_at = recorded_at_timestamp",
-                "        last_sequence = event_sequence",
-            ]
-
-            lines.append(",\n".join(sets))
-            lines.append(f"    WHERE id = entity_id;")
-            lines.append("    RETURN;")
-        else:
-            raise ValueError(f"Unsupported DML: {dml}")
+        if dml == DMLOperation.INSERT:
+            lines += self._render_insert(self.effect, table_name, all_columns)
+        if dml == DMLOperation.UPDATE:
+            lines += self._render_update(self.effect, table_name, all_columns)
 
         lines += ["END;", "$$;"]
-
         return "\n".join(lines)
+
+    @staticmethod
+    def _render_insert(
+        effect: EventEffectDefinition, table_name: str, all_columns: dict
+    ) -> list[str]:
+        cols = list(EventDefinition.DEFAULT_METADATA_COL_NAMES)
+        vals = list(EventDefinition.DEFAULT_METADATA_INSERT_VALS)
+
+        for mapping in effect.mappings:
+            if (
+                mapping.target_table_column_name
+                == TargetTableDefinition.ID_COL.column_name
+            ):
+                continue
+            if isinstance(mapping, EventToColMappingDefinition):
+                cols.append(mapping.target_table_column_name)
+                vals.append(
+                    EventDefinition._cast_expr(
+                        mapping.event_property_name,
+                        mapping.target_table_column_name,
+                        all_columns,
+                    )
+                )
+            if isinstance(mapping, RawSQLToColMappingDefinition):
+                cols.append(mapping.target_table_column_name)
+                vals.append(mapping.raw_sql)
+
+        return [
+            f"    INSERT INTO {table_name} (",
+            "        " + ",\n        ".join(cols) + ")",
+            "    VALUES (",
+            "        " + ",\n        ".join(vals) + ");",
+            "    RETURN;",
+        ]
+
+    @staticmethod
+    def _render_update(
+        effect: EventEffectDefinition, table_name: str, all_columns: dict
+    ) -> list[str]:
+        sets = []
+
+        for mapping in effect.mappings:
+            if isinstance(mapping, EventToColMappingDefinition):
+                sets.append(
+                    f"        {mapping.target_table_column_name} = "
+                    f"{EventDefinition._cast_expr(mapping.event_property_name, mapping.target_table_column_name, all_columns)}"
+                )
+            if isinstance(mapping, RawSQLToColMappingDefinition):
+                sets.append(
+                    f"        {mapping.target_table_column_name} = {mapping.raw_sql}"
+                )
+
+        sets += [
+            f"        {TargetTableDefinition.UPDATED_AT_COL.column_name} = {EventDefinition.DEFAULT_RECORDED_AT_TIMESTAMP_NAME}",
+            f"        {TargetTableDefinition.LAST_SEQUENCE_COL.column_name} = {EventDefinition.DEFAULT_EVENT_SEQUENCE_NAME}",
+        ]
+
+        lines = [
+            "    UPDATE",
+            f"        {table_name}",
+            "    SET",
+            ",\n".join(sets),
+            f"    WHERE {TargetTableDefinition.ID_COL.column_name} = {EventDefinition.DEFAULT_ENTITY_ID_NAME};",
+            "    RETURN;",
+        ]
+        return lines
+
+    @staticmethod
+    def _cast_expr(event_prop: str, column_name: str, all_columns: dict) -> str:
+        col_type = all_columns.get(column_name, PgColType.VARCHAR)
+        pg_type = col_type.value
+        return f"CAST({EventDefinition.DEFAULT_EVENT_NAME} ->> '{event_prop}' AS {pg_type})"
 
 
 class EntityDefinition:
@@ -299,6 +326,56 @@ class EntityDefinition:
         self.entity_name = entity_name
         self.target_table = target_table
         self.events = tuple(events)
+
+    def render(self) -> SyntacticallyValidSQL:
+        entity_name = self.entity_name
+        target_table = self.target_table
+        events = self.events
+
+        create_table_statement = target_table.render().sql_string
+        event_projection_functions = [event.render(target_table) for event in events]
+
+        trig_lines = [
+            f"CREATE OR REPLACE FUNCTION fn_trigger_{entity_name}_event ()",
+            "    RETURNS TRIGGER",
+            "    SECURITY DEFINER",
+            "    LANGUAGE plpgsql",
+            "    AS $$",
+            "BEGIN",
+        ]
+        for event in events:
+            trig_lines.append(
+                f"    IF (NEW.event ->> 'type') = '{event.event_type}' THEN"
+            )
+            trig_lines.append(
+                f"        PERFORM fn_project_{entity_name}_{event.event_type} (NEW.id, NEW.sequence, NEW.recorded_at, NEW.event);"
+            )
+            trig_lines.append("        RETURN NEW;")
+            trig_lines.append("    END IF;")
+        trig_lines.append("    RETURN NEW;")
+        trig_lines.append("END;")
+        trig_lines.append("$$;")
+
+        trigger_stmt = "\n".join(
+            [
+                f"CREATE TRIGGER trg_rollup_{entity_name}_event",
+                f"    AFTER INSERT ON {entity_name}_events",
+                "    FOR EACH ROW",
+                f"    EXECUTE PROCEDURE fn_trigger_{entity_name}_event ();",
+            ]
+        )
+
+        final_sql = SyntacticallyValidSQL(
+            "\n\n".join(
+                [
+                    create_table_statement,
+                    *event_projection_functions,
+                    "\n".join(trig_lines),
+                    trigger_stmt,
+                ]
+            )
+        )
+        return final_sql
 
     def validate(self) -> None:
         insert_events = self._get_insert_events()
