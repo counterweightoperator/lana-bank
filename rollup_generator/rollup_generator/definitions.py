@@ -1,6 +1,8 @@
 from enum import Enum
 from typing import Collection, Union, List, Set
 
+import pglast
+
 
 class SyntacticallyValidSQL:
 
@@ -11,7 +13,11 @@ class SyntacticallyValidSQL:
 
     @staticmethod
     def _is_valid_pgsql_string(sql_string: str) -> bool:
-        # Pending
+        try:
+            pglast.parse_sql(sql_string)
+        except pglast.parser.ParseError:
+            return False
+
         return True
 
 
@@ -217,7 +223,7 @@ class EventDefinition:
         self.schema = schema
         self.effect = effect
 
-    def render(self, target_table: TargetTableDefinition) -> str:
+    def render(self, target_table: TargetTableDefinition) -> SyntacticallyValidSQL:
         table_name = target_table.table_name + "s"
         dml = self.effect.dml_operation
         all_columns = {
@@ -241,7 +247,10 @@ class EventDefinition:
             lines += self._render_update(self.effect, table_name, all_columns)
 
         lines += ["END;", "$$;"]
-        return "\n".join(lines)
+
+        event_projection_function = SyntacticallyValidSQL("\n".join(lines))
+
+        return event_projection_function
 
     @staticmethod
     def _render_insert(
@@ -333,7 +342,9 @@ class EntityDefinition:
         events = self.events
 
         create_table_statement = target_table.render().sql_string
-        event_projection_functions = [event.render(target_table) for event in events]
+        event_projection_functions = [
+            event.render(target_table).sql_string for event in events
+        ]
 
         trig_lines = [
             f"CREATE OR REPLACE FUNCTION fn_trigger_{entity_name}_event ()",
