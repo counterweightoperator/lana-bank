@@ -191,6 +191,103 @@ class EventDefinition:
         self.schema = schema
         self.effect = effect
 
+    def render(self, entity_name: str, target_table: TargetTableDefinition) -> str:
+        table_name = target_table.table_name + "s"
+
+        def cast_for_update(col, prop):
+            col_type = next(
+                (
+                    c.column_type
+                    for c in (
+                        list(target_table.domain_column_definitions)
+                        + list(target_table.metadata_column_definitions)
+                    )
+                    if c.column_name == col
+                ),
+                PgColType.VARCHAR,  # Default fallback
+            )
+
+            if col_type == PgColType.UUID:
+                return f"CAST(event ->> '{prop}' AS UUID)"
+            return f"event ->> '{prop}'"
+
+        effect = self.effect
+        dml = effect.dml_operation.value.upper()
+        mappings = effect.mappings
+
+        lines = [
+            f"CREATE OR REPLACE FUNCTION fn_project_{entity_name}_{self.event_type} (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)",
+            "    RETURNS VOID",
+            "    SECURITY DEFINER",
+            "    LANGUAGE plpgsql",
+            "    AS $$",
+            "BEGIN",
+        ]
+
+        if dml == "INSERT":
+            cols = ["id", "created_at", "updated_at", "last_sequence"]
+            vals = [
+                "entity_id",
+                "recorded_at_timestamp",
+                "recorded_at_timestamp",
+                "event_sequence",
+            ]
+
+            for mapping in mappings:
+                if mapping.target_table_column_name == "id":
+                    continue
+
+                if isinstance(mapping, EventToColMappingDefinition):
+                    cols.append(mapping.target_table_column_name)
+                    vals.append(f"event ->> '{mapping.event_property_name}'")
+                elif isinstance(mapping, RawSQLToColMappingDefinition):
+                    cols.append(mapping.target_table_column_name)
+                    vals.append(mapping.raw_sql)
+                else:
+                    raise ValueError(f"Unsupported mapping type: {type(mapping)}")
+
+            lines += [
+                f"    INSERT INTO {table_name} (",
+                "        " + ",\n        ".join(cols) + ")",
+                "    VALUES (",
+                "        " + ",\n        ".join(vals) + ");",
+                "    RETURN;",
+            ]
+
+        elif dml == "UPDATE":
+            lines.append(f"    UPDATE")
+            lines.append(f"        {table_name}")
+            lines.append(f"    SET")
+
+            sets = []
+            for mapping in mappings:
+                if isinstance(mapping, EventToColMappingDefinition):
+                    sets.append(
+                        f"        {mapping.target_table_column_name} = {cast_for_update(mapping.target_table_column_name, mapping.event_property_name)}"
+                    )
+                elif isinstance(mapping, RawSQLToColMappingDefinition):
+                    sets.append(
+                        f"        {mapping.target_table_column_name} = {mapping.raw_sql}"
+                    )
+                else:
+                    raise ValueError(f"Unsupported mapping type: {type(mapping)}")
+
+            # Audit fields
+            sets += [
+                "        updated_at = recorded_at_timestamp",
+                "        last_sequence = event_sequence",
+            ]
+
+            lines.append(",\n".join(sets))
+            lines.append(f"    WHERE id = entity_id;")
+            lines.append("    RETURN;")
+        else:
+            raise ValueError(f"Unsupported DML: {dml}")
+
+        lines += ["END;", "$$;"]
+
+        return "\n".join(lines)
+
 
 class EntityDefinition:
     def __init__(
