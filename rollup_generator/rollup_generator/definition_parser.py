@@ -6,7 +6,7 @@ from rollup_generator.definitions import (
     EventDefinition,
     EventSchemaDefinition,
     EventFieldDefinition,
-    EventType,
+    EventFieldType,
     EventFormat,
     EventEffectDefinition,
     DMLOperation,
@@ -62,7 +62,7 @@ def parse_json_into_event_definition(
         if field_name == "type":
             continue  # already handled
 
-        field_type = EventType(field_props["type"])
+        field_type = EventFieldType(field_props["type"])
         field_format = (
             EventFormat(field_props["format"]) if "format" in field_props else None
         )

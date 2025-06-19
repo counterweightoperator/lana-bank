@@ -125,9 +125,11 @@ class TargetTableDefinition:
         return SyntacticallyValidSQL(create_table_statement)
 
 
-class EventType(Enum):
+class EventFieldType(Enum):
     STRING = "string"
     ENUM = "enum"
+    INTEGER = "integer"
+    BOOLEAN = "boolean"
 
 
 class EventFormat(Enum):
@@ -148,7 +150,7 @@ class EventFieldDefinition:
     def __init__(
         self,
         name: str,
-        type: EventType,
+        type: EventFieldType,
         format: Union[EventFormat, None],
         is_required: bool = False,
     ):
