@@ -2,6 +2,19 @@ from enum import Enum
 from typing import Collection, Union, List, Set
 
 
+class SyntacticallyValidSQL:
+
+    def __init__(self, sql_string: str):
+        if not SyntacticallyValidSQL._is_valid_pgsql_string(sql_string):
+            raise ValueError(f"Invalid SQL: {sql_string}")
+        self.sql_string = sql_string
+
+    @staticmethod
+    def _is_valid_pgsql_string(sql_string: str) -> bool:
+        # Pending
+        return True
+
+
 class PgColType(Enum):
     UUID = "UUID"
     VARCHAR = "VARCHAR"
@@ -17,12 +30,29 @@ class PostgresColumnDefinition:
         is_pk: bool = False,
         is_nullable: bool = False,
         is_unique: bool = False,
+        default_value: str = None,
     ):
         self.column_name = column_name
         self.column_type = column_type
         self.is_pk = is_pk
         self.is_nullable = is_nullable
         self.is_unique = is_unique
+        self.default_value = default_value
+
+    def render(self) -> str:
+
+        parts = [self.column_name, self.column_type.value]
+        if self.is_pk:
+            parts.append("PRIMARY KEY")
+            return " ".join(parts)
+
+        parts.append("NULL" if self.is_nullable else "NOT NULL")
+        if self.is_unique:
+            parts.append("UNIQUE")
+        if self.default_value is not None:
+            parts.append(f"DEFAULT {self.default_value}")
+
+        return " ".join(parts)
 
 
 class TargetTableDefinition:
@@ -61,6 +91,26 @@ class TargetTableDefinition:
         self.table_name = table_name
         self.domain_column_definitions = tuple(domain_column_definitions)
         self.metadata_column_definitions = TargetTableDefinition.DEFAULT_METADATA_COLS
+
+    def render(self, pluralise: bool = True) -> SyntacticallyValidSQL:
+
+        table_name = self.table_name
+        if pluralise:
+            table_name = table_name + "s"
+
+        domain_column_renders = [col.render() for col in self.domain_column_definitions]
+        metadata_column_renders = [
+            col.render() for col in self.metadata_column_definitions
+        ]
+        all_column_renders = domain_column_renders + metadata_column_renders
+
+        create_table_statement = (
+            f"CREATE TABLE {table_name} (\n    "
+            + ",\n    ".join(all_column_renders)
+            + "\n);"
+        )
+
+        return SyntacticallyValidSQL(create_table_statement)
 
 
 class EventType(Enum):

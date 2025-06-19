@@ -29,6 +29,7 @@ def parse_json_into_postgres_column_definitions(
             is_pk=field_properties.get("is_pk", False),
             is_nullable=field_properties.get("is_nullable", False),
             is_unique=field_properties.get("is_unique", False),
+            default_value=field_properties.get("default", None),
         )
         cols.append(new_column)
 

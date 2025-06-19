@@ -6,7 +6,7 @@ CREATE TABLE core_users (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     deleted_at TIMESTAMPTZ NULL,
-    last_sequence INT NOT NULL
+    last_sequence INTEGER NOT NULL
 );
 
 CREATE OR REPLACE FUNCTION fn_project_core_user_initialized (entity_id UUID, event_sequence INTEGER, recorded_at_timestamp TIMESTAMPTZ, event JSONB)
@@ -112,3 +112,4 @@ CREATE TRIGGER trg_rollup_core_user_event
     AFTER INSERT ON core_user_events
     FOR EACH ROW
     EXECUTE PROCEDURE fn_trigger_core_user_event ();
+

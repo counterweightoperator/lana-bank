@@ -1,3 +1,10 @@
+from rollup_generator.definition_parser import (
+    parse_json_into_target_table_definition,
+)
+
+from rollup_generator.definitions import TargetTableDefinition
+
+
 def generate_entity_migration_from_definition(json_content: dict) -> str:
     entity_name = json_content["entity_name"]
     target_table = json_content["target_table"]
@@ -7,6 +14,13 @@ def generate_entity_migration_from_definition(json_content: dict) -> str:
     # Simple pluralization by adding 's'
     table_name = target_table["table_name"]
     table_name_plural = table_name + "s"
+
+    # Build CREATE TABLE
+    table_definition = parse_json_into_target_table_definition(
+        json_content["target_table"]
+    )
+    table_definition_render = table_definition.render().sql_string
+    create_table = table_definition_render
 
     def map_type(field_def):
         typ = field_def["type"].upper()
@@ -19,69 +33,12 @@ def generate_entity_migration_from_definition(json_content: dict) -> str:
             "TIMESTAMPTZ": "TIMESTAMPTZ",
         }.get(typ, typ)
 
-    def find_primary_key():
-        # Look for explicit PK
-        for fname, fdef in fields.items():
-            if fdef.get("is_pk"):
-                return fname
-        # Fallback: infer from first INSERT event mapping 'id'
-        for ev in events.values():
-            if ev.get("effect", {}).get("dml", "").upper() == "INSERT":
-                for col, mapping in ev["effect"]["mapping"].items():
-                    if col == "id":
-                        # Ensure 'id' in fields
-                        if "id" not in fields:
-                            fields["id"] = {
-                                "type": "UUID",
-                                "is_pk": True,
-                                "is_nullable": False,
-                            }
-                        return "id"
-        raise ValueError("Primary key column not found")
-
-    def render_column(name, defn, is_pk):
-        col_type = map_type(defn)
-        parts = [name, col_type]
-        if is_pk:
-            parts.append("PRIMARY KEY")
-        else:
-            parts.append("NOT NULL" if not defn.get("is_nullable", False) else "NULL")
-        if defn.get("is_unique") and not is_pk:
-            parts.append("UNIQUE")
-        default = defn.get("default")
-        if default is not None:
-            if isinstance(default, str) and default.upper() == "NULL":
-                parts.append("DEFAULT NULL")
-            elif isinstance(default, str):
-                parts.append(f"DEFAULT '{default}'")
-            else:
-                parts.append(f"DEFAULT {default}")
-        return " ".join(parts)
-
     def cast_for_update(col, prop):
         # Cast event property according to column type
         ctype = map_type(fields.get(col, {"type": "VARCHAR"}))
         if ctype == "UUID":
             return f"CAST(event ->> '{prop}' AS UUID)"
         return f"event ->> '{prop}'"
-
-    # Build CREATE TABLE
-    pk = find_primary_key()
-    columns = [render_column(name, defn, name == pk) for name, defn in fields.items()]
-
-    # Add standard audit columns
-    columns.extend(
-        [
-            "created_at TIMESTAMPTZ NOT NULL",
-            "updated_at TIMESTAMPTZ NOT NULL",
-            "deleted_at TIMESTAMPTZ NULL",
-            "last_sequence INT NOT NULL",
-        ]
-    )
-
-    create_table = (
-        f"CREATE TABLE {table_name_plural} (\n    " + ",\n    ".join(columns) + "\n);"
-    )
 
     def gen_event_function(event_name, event_def):
         effect = event_def.get("effect")
