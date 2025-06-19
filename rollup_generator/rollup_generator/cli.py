@@ -6,6 +6,9 @@ import json
 import click
 
 from rollup_generator.validation_service import validate_entity_service
+from rollup_generator.code_generation_service import (
+    generate_entity_migration_from_definition,
+)
 
 PATHS = {}
 
@@ -42,3 +45,14 @@ def validate_entity_definition(json_path):
         json_content = json.load(f)
     validate_entity_service(json_content)
     logger.info("Validation successful!")
+
+
+@cli.command()
+@click.argument(
+    "json_path",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
+)
+def generate_entity_migration(json_path):
+    with open(json_path, "r") as f:
+        json_content = json.load(f)
+    print(generate_entity_migration_from_definition(json_content))
