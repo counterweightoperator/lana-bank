@@ -17,8 +17,8 @@ def generate_entity_migration_from_definition(json_content: dict) -> str:
     table_definition = parse_json_into_target_table_definition(
         json_content["target_table"]
     )
-    table_definition_render = table_definition.render().sql_string
-    create_table = table_definition_render
+
+    create_table_statement = table_definition.render().sql_string
 
     def map_type(field_def):
         typ = field_def["type"].upper()
@@ -145,7 +145,7 @@ def generate_entity_migration_from_definition(json_content: dict) -> str:
 
     return "\n\n".join(
         [
-            create_table,
+            create_table_statement,
             *event_functions,
             "\n".join(trig_lines),
             trigger_stmt,
